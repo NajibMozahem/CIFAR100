@@ -78,16 +78,25 @@ history = model.fit(ds_train_xy.batch(32), epochs=30)
 
 model.evaluate(ds_test_xy.batch(32))
 
-for image, label in ds_test_xy.shuffle(1000).take(1):
+#look at performance on train set
+for i, (image, label) in enumerate(ds_train_xy.shuffle(1000).take(3)):
     image_resize = tf.expand_dims(image, 0)
     pred = model.predict(image_resize)
-    print(pred.shape)
-    print(pred)
-    print('Predicted: ', class_names[np.argmax(pred)])
-    print('Actual: ', class_names[label])
+    plt.subplot(3, 1, i + 1)
     plt.imshow(image)
     plt.title('Predicted: ' + class_names[np.argmax(pred)] + ', Actual: ' + class_names[label])
-    plt.show()
+    plt.axis('off')
+plt.show()
+
+# look as performance on test set
+for i, (image, label) in enumerate(ds_test_xy.shuffle(1000).take(3)):
+    image_resize = tf.expand_dims(image, 0)
+    pred = model.predict(image_resize)
+    plt.subplot(3, 1, i + 1)
+    plt.imshow(image)
+    plt.title('Predicted: ' + class_names[np.argmax(pred)] + ', Actual: ' + class_names[label])
+    plt.axis('off')
+plt.show()
 
 #perform data augmentation
 def augment_image(x, y):
@@ -98,7 +107,7 @@ def augment_image(x, y):
 
 ds_train_augmented = ds_train_xy.map(augment_image)
 # concatenate original data set with augmented one
-ds_train_xy = ds_train_xy.concatenate(ds_train_augmented)
+ds_train_xy_augmented = ds_train_xy.concatenate(ds_train_augmented)
 
 model_2 = keras.Sequential([
     keras.layers.Conv2D(32, 3, padding='same', input_shape=(32, 32, 3)),
@@ -116,16 +125,79 @@ model_2 = keras.Sequential([
     keras.layers.Activation('relu'),
     keras.layers.MaxPooling2D(),
     keras.layers.Flatten(),
+    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Dropout(0.25),
     keras.layers.Dense(128, activation='relu'),
+    keras.layers.Dropout(0.25),
     keras.layers.Dense(100, activation='softmax')
 ])
 
 model_2.summary()
 
 model_2.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-history_2 = model_2.fit(ds_train_xy.batch(32), epochs=30)
+history_2 = model_2.fit(ds_train_xy_augmented.batch(32), epochs=30)
 
 model_2.evaluate(ds_test_xy.batch(32))
+
+# look as performance on test set
+for i, (image, label) in enumerate(ds_test_xy.shuffle(1000).take(3)):
+    image_resize = tf.expand_dims(image, 0)
+    pred = model_2.predict(image_resize)
+    plt.subplot(3, 1, i + 1)
+    plt.imshow(image)
+    plt.title('Predicted: ' + class_names[np.argmax(pred)] + ', Actual: ' + class_names[label])
+    plt.axis('off')
+plt.show()
+
+# Implement ResNet-34
+class ResidualUnit(keras.layers.Layer):
+    def __init__(self, filters, strides=1, activation='relu', **kwargs):
+        super().__init__(**kwargs)
+        self.activation = keras.activations.get(activation)
+        self.main_layers = [
+            keras.layers.Cond2D(filters, 3, strides=strides, padding='same', use_bias=False),
+            keras.layers.BatchNormalization(),
+            self.activation,
+            keras.layers.Cond2D(filters, 3, strides=1, padding='same', use_bias=False),
+            keras.layers.BatchNormalization()
+        ]
+        self.skip_layers = []
+        if strides > 1:
+            self.skip_layers = [
+                keras.layers.Conv2D(filters, 1, strides=strides, padding='same', use_bias=False),
+                keras.layers.BatchNormalization()
+            ]
+    
+    def call(self, inputs):
+        Z = inputs
+        for layer in self.main_layers:
+            Z = layer(Z)
+        skip_Z = inputs
+        for layer in self.skip_layers:
+            skip_Z = layer(skip_Z)
+        return self.activation(Z + skip_Z)
+
+model_3 = keras.models.Sequential()
+model_3.add(keras.layers.Conv2D(64, 7, strides=2, input_shape=[32, 32, 3], padding='same', use_bias=False))
+model_3.add(keras.layers.BatchNormalization())
+model_3.add(keras.layers.Activation('relu'))
+model_3.add(keras.layers.MaxPooling2D(pool_size=3, strides=2, padding='same'))
+prev_filters = 64
+for filters in [64] * 3 + [128] * 4 + [256] * 6 + [512] * 3:
+    strides = 1 if filters == prev_filters else 2
+    model_3.add(ResidualUnit(filters, strides=strides))
+    prev_filters = filters
+model_3.add(keras.layers.GlobalAveragePooling2D())
+model_3.add(keras.layers.Flatten())
+model_3.add(keras.layers.Dense(100, activation='softmax'))
+
+model_3.summary()
+
+model_3.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history_3 = model_3.fit(ds_train_xy_augmented.batch(32), epochs=30)
+
+model_3.evaluate(ds_test_xy.batch(32))
+
 
 
 
