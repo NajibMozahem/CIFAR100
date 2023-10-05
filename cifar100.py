@@ -64,7 +64,10 @@ model = keras.Sequential([
     keras.layers.Conv2D(64, 3, padding='same', activation='relu'),
     keras.layers.MaxPooling2D(),
     keras.layers.Flatten(),
+    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Dropout(0.25),
     keras.layers.Dense(128, activation='relu'),
+    keras.layers.Dropout(0.25),
     keras.layers.Dense(100, activation='softmax')
 ])
 
@@ -74,6 +77,55 @@ model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=
 history = model.fit(ds_train_xy.batch(32), epochs=30)
 
 model.evaluate(ds_test_xy.batch(32))
+
+for image, label in ds_test_xy.shuffle(1000).take(1):
+    image_resize = tf.expand_dims(image, 0)
+    pred = model.predict(image_resize)
+    print(pred.shape)
+    print(pred)
+    print('Predicted: ', class_names[np.argmax(pred)])
+    print('Actual: ', class_names[label])
+    plt.imshow(image)
+    plt.title('Predicted: ' + class_names[np.argmax(pred)] + ', Actual: ' + class_names[label])
+    plt.show()
+
+#perform data augmentation
+def augment_image(x, y):
+    x = tf.image.random_flip_left_right(x)
+    x = tf.image.random_crop(x, size=[32, 32, 3])
+    x = tf.image.random_contrast(x, 0.2, 0.5)
+    return x, y
+
+ds_train_augmented = ds_train_xy.map(augment_image)
+# concatenate original data set with augmented one
+ds_train_xy = ds_train_xy.concatenate(ds_train_augmented)
+
+model_2 = keras.Sequential([
+    keras.layers.Conv2D(32, 3, padding='same', input_shape=(32, 32, 3)),
+    keras.layers.BatchNormalization(),
+    keras.layers.Activation('relu'),
+    keras.layers.Conv2D(32, 3, padding='same'),
+    keras.layers.Lambda(tf.nn.local_response_normalization),
+    keras.layers.Activation('relu'),
+    keras.layers.MaxPooling2D(),
+    keras.layers.Conv2D(64, 3, padding='same'),
+    keras.layers.Lambda(tf.nn.local_response_normalization),
+    keras.layers.Activation('relu'),
+    keras.layers.Conv2D(64, 3, padding='same'),
+    keras.layers.BatchNormalization(),
+    keras.layers.Activation('relu'),
+    keras.layers.MaxPooling2D(),
+    keras.layers.Flatten(),
+    keras.layers.Dense(128, activation='relu'),
+    keras.layers.Dense(100, activation='softmax')
+])
+
+model_2.summary()
+
+model_2.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history_2 = model_2.fit(ds_train_xy.batch(32), epochs=30)
+
+model_2.evaluate(ds_test_xy.batch(32))
 
 
 
