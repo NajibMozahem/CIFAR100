@@ -23,7 +23,7 @@ print('There are ' + str(len(class_names)) + ' fine labels')
 print('There are ' + str(len(coarse_class_names)) + ' coarse labels')
 
 # get the shape of the image in the train set
-ds_train.element_spec['image'].shape
+print(ds_train.element_spec['image'].shape)
 
 # show images with fine labels
 for i, example in enumerate(ds_train.shuffle(1000).take(12)):
@@ -45,7 +45,36 @@ for i, example in enumerate(ds_train.shuffle(1000).take(12)):
     plt.axis('off')
 plt.show()
 
-# ml
+def extract_image_and_label(data):
+    x = data['image']
+    y = data['label']
+    return x, y
+
+# get the x and y values for the train and test sets
+ds_train_xy = ds_train.map(extract_image_and_label)
+# do the same for the test set:
+ds_test_xy = ds_test.map(extract_image_and_label)
+
+# Build a CNN to classify images
+model = keras.Sequential([
+    keras.layers.Conv2D(32, 3, padding='same', activation='relu', input_shape=(32, 32, 3)),
+    keras.layers.Conv2D(32, 3, padding='same', activation='relu'),
+    keras.layers.MaxPooling2D(),
+    keras.layers.Conv2D(64, 3, padding='same', activation='relu'),
+    keras.layers.Conv2D(64, 3, padding='same', activation='relu'),
+    keras.layers.MaxPooling2D(),
+    keras.layers.Flatten(),
+    keras.layers.Dense(128, activation='relu'),
+    keras.layers.Dense(100, activation='softmax')
+])
+
+model.summary()
+
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(ds_train_xy.batch(32), epochs=30)
+
+model.evaluate(ds_test_xy.batch(32))
+
 
 
 
