@@ -155,10 +155,10 @@ class ResidualUnit(keras.layers.Layer):
         super().__init__(**kwargs)
         self.activation = keras.activations.get(activation)
         self.main_layers = [
-            keras.layers.Cond2D(filters, 3, strides=strides, padding='same', use_bias=False),
+            keras.layers.Conv2D(filters, 3, strides=strides, padding='same', use_bias=False),
             keras.layers.BatchNormalization(),
             self.activation,
-            keras.layers.Cond2D(filters, 3, strides=1, padding='same', use_bias=False),
+            keras.layers.Conv2D(filters, 3, strides=1, padding='same', use_bias=False),
             keras.layers.BatchNormalization()
         ]
         self.skip_layers = []
@@ -197,6 +197,22 @@ model_3.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metric
 history_3 = model_3.fit(ds_train_xy_augmented.batch(32), epochs=30)
 
 model_3.evaluate(ds_test_xy.batch(32))
+#-------------------------------
+#RESNET
+
+model_4 = keras.applications.resnet50.ResNet50(include_top=False, weights=None)
+
+def preprocess(image, label):
+    #resized_image = tf.image.resize(image, (224, 224))
+    final_image = keras.applications.resnet50.preprocess_input(image)
+    return final_image, label
+
+ds_train_xy_resnet = ds_train_xy.map(preprocess)
+ds_test_xy_resnet = ds_test_xy.map(preprocess)
+
+model_4.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+history_4 = model_4.fit(ds_train_xy_resnet.batch(32), epochs=10)
 
 
 
