@@ -200,8 +200,6 @@ model_3.evaluate(ds_test_xy.batch(32))
 #-------------------------------
 #RESNET
 
-model_4 = keras.applications.resnet50.ResNet50(include_top=False, weights=None)
-
 def preprocess(image, label):
     #resized_image = tf.image.resize(image, (224, 224))
     final_image = keras.applications.resnet50.preprocess_input(image)
@@ -210,9 +208,30 @@ def preprocess(image, label):
 ds_train_xy_resnet = ds_train_xy.map(preprocess)
 ds_test_xy_resnet = ds_test_xy.map(preprocess)
 
+base_model_4 = keras.applications.resnet50.ResNet50(include_top=False, weights='imagenet')
+avg = keras.layers.GlobalAveragePooling2D()(base_model_4.output)
+output = keras.layers.Dense(100, activation='softmax')(avg)
+model_4 = keras.Model(inputs=base_model_4.input, outputs=output)
+
+for layer in base_model_4.layers:
+    layer.trainable = False
+
+model_4.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+history_4 = model_4.fit(ds_train_xy_resnet.batch(32), epochs=30)
+
+model_4.evaluate(ds_test_xy_resnet.batch(32))
+
+# now unfreeze the base model
+
+for layer in base_model_4.layers:
+    layer.trainable = True
+
 model_4.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 history_4 = model_4.fit(ds_train_xy_resnet.batch(32), epochs=10)
+
+model_4.evaluate(ds_test_xy_resnet.batch(32))
 
 
 
